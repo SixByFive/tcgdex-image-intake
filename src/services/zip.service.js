@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const AdmZip = require('adm-zip');
-const { isJunkFile, parseZipFilename } = require('../utils/filenames');
+const { isJunkFile, parseZipFilename } = require('../utils/fileNames');
 const logger = require('../utils/logger');
 
 /**
