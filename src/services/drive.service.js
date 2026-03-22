@@ -31,8 +31,6 @@ async function findFolder(drive, name, parentId) {
     q,
     fields: 'files(id, name)',
     spaces: 'drive',
-    supportsAllDrives: true,
-    includeItemsFromAllDrives: true,
   });
 
   const files = res.data.files;
@@ -45,7 +43,6 @@ async function findFolder(drive, name, parentId) {
  */
 async function createFolder(drive, name, parentId) {
   const res = await drive.files.create({
-    supportsAllDrives: true,
     requestBody: {
       name,
       mimeType: 'application/vnd.google-apps.folder',
@@ -79,7 +76,6 @@ async function findOrCreateFolder(drive, name, parentId) {
  */
 async function uploadFile(drive, localPath, filename, parentFolderId, mimeType) {
   const res = await drive.files.create({
-    supportsAllDrives: true,
     requestBody: {
       name: filename,
       parents: [parentFolderId],
@@ -105,8 +101,8 @@ const EXT_MIME = {
  * Upload a batch of renamed card image files to Google Drive.
  * Optionally uploads a set symbol to the set folder.
  *
- * @param {string} setCode - e.g. "SV2A"
- * @param {string} submissionId - e.g. "SV2A-2026-03-21T15-12-44Z-a1b2c3"
+ * @param {string} setCode
+ * @param {string} submissionId
  * @param {Array<{ cardNumber, localPath, canonicalFilename, ext }>} files
  * @param {{ absPath: string, ext: string } | null} symbolFile
  * @returns {{ setFolderId, submissionFolderId, uploads, symbolFile }}

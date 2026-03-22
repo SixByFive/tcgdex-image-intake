@@ -1,15 +1,14 @@
 # tcgdex-image-intake
 
-A standalone REST service that accepts zipped batches of TCG card images, validates them against provided metadata, renames them into a canonical format, and uploads them into Google Drive.
+A standalone REST service that accepts zipped batches of TCG card images, validates them against provided metadata, renames them into a canonical format, and uploads them into MinIO object storage.
 
 ---
 
 ## Requirements
 
-- Node.js 18+
-- PM2 (`npm install -g pm2`)
-- A Google Cloud service account with Drive API access
-- A Google Drive folder shared with the service account
+- Docker + Docker Compose
+
+That's it. Node.js, MinIO, and all dependencies run inside Docker.
 
 ---
 
@@ -18,10 +17,9 @@ A standalone REST service that accepts zipped batches of TCG card images, valida
 ```bash
 git clone <repo>
 cd tcgdex-image-intake
-npm install
 cp .env.example .env
 # Fill in your values in .env
-npm run dev
+docker compose up --build
 ```
 
 ---
@@ -34,28 +32,76 @@ npm run dev
 | `NODE_ENV` | No | `production` or `development` |
 | `API_KEY` | **Yes** | Secret key sent in `x-api-key` header |
 | `MAX_UPLOAD_MB` | No | Max zip size in MB (default: `100`) |
-| `TEMP_UPLOAD_DIR` | No | Temp path for uploaded zips |
-| `TEMP_EXTRACT_DIR` | No | Temp path for extracted files |
-| `GOOGLE_SERVICE_ACCOUNT_EMAIL` | **Yes** | Service account email |
-| `GOOGLE_PRIVATE_KEY` | **Yes** | Service account private key (with literal `\n`) |
-| `GOOGLE_DRIVE_ROOT_FOLDER_ID` | **Yes** | ID of the root Drive folder |
-| `ALLOWED_ORIGINS` | No | Comma-separated CORS origins |
+| `MINIO_ROOT_USER` | **Yes** | MinIO admin username |
+| `MINIO_ROOT_PASSWORD` | **Yes** | MinIO admin password |
+| `MINIO_ACCESS_KEY` | **Yes** | Service access key (used by the intake service) |
+| `MINIO_SECRET_KEY` | **Yes** | Service secret key (used by the intake service) |
+| `MINIO_BUCKET_NAME` | No | Bucket name (default: `tcgdex-images`) |
+| `ALLOWED_ORIGINS` | No | Comma-separated CORS origins — no trailing slashes |
+
+### Example `.env`
+
+```dotenv
+API_KEY=your-secret-api-key
+
+MINIO_ROOT_USER=minioadmin
+MINIO_ROOT_PASSWORD=changeme-use-a-strong-password
+
+MINIO_ACCESS_KEY=your-access-key
+MINIO_SECRET_KEY=your-secret-key
+MINIO_BUCKET_NAME=tcgdex-images
+
+ALLOWED_ORIGINS=https://tcgdex.net,http://localhost:3000
+```
 
 ---
 
-## Google Drive setup
+## Docker
 
-1. Create a Google Cloud project
-2. Enable the **Google Drive API**
-3. Create a **service account**
-4. Download the JSON key — copy the `client_email` and `private_key` values into your `.env`
-5. Share your target Drive folder with the service account email (Editor access)
-6. Copy the folder ID from the Drive URL into `GOOGLE_DRIVE_ROOT_FOLDER_ID`
+The project includes three Docker services:
 
-The folder ID is the long string at the end of the Drive URL:
+- **`minio`** — MinIO object storage, data persisted via a named Docker volume
+- **`minio-init`** — runs once on first boot to create the bucket and service user
+- **`intake`** — the Node.js intake service
+
+### Start
+
+```bash
+docker compose up --build
 ```
-https://drive.google.com/drive/folders/<FOLDER_ID_HERE>
+
+### Stop
+
+```bash
+docker compose down
 ```
+
+### Rebuild after code changes
+
+```bash
+docker compose down
+docker compose up --build
+```
+
+### View logs
+
+```bash
+docker compose logs -f intake
+docker compose logs -f minio
+```
+
+### MinIO console
+
+The MinIO web UI is available internally at `http://localhost:9001`.
+
+On the server, access it via SSH tunnel:
+
+```bash
+ssh -L 9001:localhost:9001 user@your-server
+# then open http://localhost:9001 in your browser
+```
+
+Log in with `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD`.
 
 ---
 
@@ -92,12 +138,13 @@ Content-Type: multipart/form-data
 
 **Zip file rules**
 - Files must be at the **root level** of the zip — no subfolders
-- Card image filenames must be **numeric only** e.g. `001.png`, `002.jpg`, `010.webp`
-- Optionally include a set symbol/logo named `symbol.png` (or `.jpg`, `.webp`)
+- Filenames must contain a number — that number is used as the card number
+- Valid examples: `001.png`, `002.jpg`, `Blitzle-12-XY-Trainer-Kit.png`, `Potion-21.webp`
+- Optionally include a set symbol/logo named `symbol.png` or `logo.png` (or `.jpg`, `.webp`)
 - Allowed formats: `.png`, `.jpg`, `.jpeg`, `.webp`
 - No duplicate files for the same card number
 - Card image filenames must exactly match the declared `cardNumbers` — no missing, no extras
-- The symbol file is optional and does not need to be declared in `cardNumbers`
+- The symbol/logo file is optional and does not need to be declared in `cardNumbers`
 
 **Success response `200`**
 
@@ -109,22 +156,23 @@ Content-Type: multipart/form-data
   "requestedCardNumbers": ["001", "002", "010"],
   "matchedCount": 3,
   "uploadedFiles": [
-    { "cardNumber": "001", "filename": "SV2A-001.png", "fileId": "..." },
-    { "cardNumber": "002", "filename": "SV2A-002.jpg", "fileId": "..." },
-    { "cardNumber": "010", "filename": "SV2A-010.webp", "fileId": "..." }
+    { "cardNumber": "001", "filename": "SV2A-001.png", "objectKey": "SV2A/SV2A-.../SV2A-001.png" },
+    { "cardNumber": "002", "filename": "SV2A-002.jpg", "objectKey": "SV2A/SV2A-.../SV2A-002.jpg" },
+    { "cardNumber": "010", "filename": "SV2A-010.webp", "objectKey": "SV2A/SV2A-.../SV2A-010.webp" }
   ],
   "symbolFile": {
     "filename": "symbol.png",
-    "fileId": "..."
+    "objectKey": "SV2A/symbol.png"
   },
-  "drive": {
-    "setFolderId": "...",
-    "submissionFolderId": "..."
+  "storage": {
+    "bucketName": "tcgdex-images",
+    "setPrefix": "SV2A",
+    "submissionPrefix": "SV2A/SV2A-2026-03-21T15-12-44Z-a1b2c3"
   }
 }
 ```
 
-> `symbolFile` is only present in the response if a symbol file was included in the zip.
+> `symbolFile` is only present in the response if a symbol or logo file was included in the zip.
 
 **Error responses**
 
@@ -137,69 +185,51 @@ Content-Type: multipart/form-data
 
 ---
 
-## Google Drive folder structure
+## Storage structure
 
 ```
-<Drive Root>/
+tcgdex-images/                          ← bucket
   SV2A/
-    symbol.png
-    SV2A-2026-03-21T15-12-44Z-a1b2c3/
+    symbol.png                          ← set symbol (set-level, shared across submissions)
+    SV2A-2026-03-21T15-12-44Z-a1b2c3/  ← submission folder
       SV2A-001.png
       SV2A-002.jpg
       SV2A-010.webp
 ```
 
-The set symbol is uploaded directly into the set folder and is shared across all submissions for that set. Each submission gets its own timestamped folder underneath, preventing accidental overwrites and keeping each batch grouped for review.
+The set symbol is stored at the set level and is overwritten if resubmitted. Each card image submission gets its own timestamped folder, preventing accidental overwrites and keeping batches grouped for review.
 
 ---
 
 ## Deployment
 
-### 1. Create log directory
+### 1. Install Docker
 
 ```bash
-sudo mkdir -p /var/log/tcgdex-image-intake
-sudo chown $USER:$USER /var/log/tcgdex-image-intake
+curl -fsSL https://get.docker.com | sh
 ```
 
-### 2. Create temp directories
-
-```bash
-sudo mkdir -p /var/www/tcgdex-image-intake/tmp/{uploads,extracted}
-sudo chown $USER:$USER /var/www/tcgdex-image-intake/tmp
-```
-
-### 3. Configure environment
+### 2. Configure environment
 
 ```bash
 cp .env.example .env
 nano .env  # fill in all required values
 ```
 
-### 4. Install dependencies
+### 3. Start
 
 ```bash
-npm install --omit=dev
+docker compose up -d
 ```
 
-### 5. Start with PM2
+### 4. Check it's running
 
 ```bash
-pm2 start ecosystem.config.js
-pm2 save
-pm2 startup  # follow the printed instructions to auto-start on boot
-```
-
-### 6. Check it's running
-
-```bash
-pm2 status
+docker compose ps
 curl http://localhost:4102/health
 ```
 
----
-
-## Nginx reverse proxy
+### 5. Nginx reverse proxy
 
 ```nginx
 server {
@@ -230,6 +260,12 @@ server {
 
 > Set `client_max_body_size` slightly above `MAX_UPLOAD_MB` so Nginx doesn't reject before Express can give a clean error.
 
+### 6. SSL
+
+```bash
+certbot --nginx -d tcgdex-upload.sixbyfive.com
+```
+
 ---
 
 ## curl example
@@ -240,31 +276,6 @@ curl -X POST https://tcgdex-upload.sixbyfive.com/api/uploads/card-images \
   -F "setCode=SV2A" \
   -F "cardNumbers=1,2,10" \
   -F "zipFile=@/path/to/cards.zip"
-```
-
----
-
-## PM2 commands
-
-```bash
-pm2 status                          # check process status
-pm2 logs tcgdex-image-intake        # tail logs
-pm2 restart tcgdex-image-intake     # restart after config change
-pm2 stop tcgdex-image-intake        # stop the service
-pm2 flush                           # clear all log files
-```
-
----
-
-## PM2 log rotation
-
-PM2 logs are unbounded by default and will grow indefinitely. Install log rotation before deploying:
-
-```bash
-pm2 install pm2-logrotate
-pm2 set pm2-logrotate:max_size 50M
-pm2 set pm2-logrotate:retain 5
-pm2 set pm2-logrotate:compress true
 ```
 
 ---
@@ -290,7 +301,7 @@ tcgdex-image-intake/
       rateLimit.middleware.js
       upload.middleware.js  Multer zip-only config
     services/
-      drive.service.js      Google Drive API integration
+      storage.service.js    MinIO upload integration
       upload.service.js     Upload orchestration
       zip.service.js        Safe zip extraction + validation
     utils/
@@ -299,8 +310,8 @@ tcgdex-image-intake/
       logger.js             Pino logger
       responses.js          Typed JSON response helpers
       tempDirs.js           Temp path helpers + cleanup
-  tmp/                      Local dev temp files (gitignored)
-  ecosystem.config.js       PM2 config
+  Dockerfile
+  docker-compose.yml
   .env.example
   package.json
 ```

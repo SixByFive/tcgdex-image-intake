@@ -6,8 +6,8 @@ const { padCardNumber } = require('./cardNumbers');
 const ALLOWED_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 const JUNK_FILES = new Set(['.ds_store', 'thumbs.db']);
 
-// Reserved filename for set symbol/logo
-const SYMBOL_BASENAME = 'symbol';
+// Reserved filenames for set symbol/logo
+const SYMBOL_BASENAMES = new Set(['symbol', 'logo']);
 
 /**
  * Returns true if a filename inside the zip should be silently ignored.
@@ -27,7 +27,9 @@ function isJunkFile(filename) {
  * Rules:
  *  - Must be a root-level file (no path separators)
  *  - Extension must be in ALLOWED_EXTENSIONS
- *  - Basename must be purely numeric, OR the reserved word "symbol"
+ *  - Basename must be "symbol" or "logo" (set symbol/logo), OR
+ *  - Basename must contain at least one number — that number is extracted as the card number
+ *    e.g. 001.png, Blitzle-12-XY-Trainer-Kit.png, Potion-21-XY-Trainer-Kit.png
  */
 function parseZipFilename(filename) {
   // Reject nested paths
@@ -46,23 +48,18 @@ function parseZipFilename(filename) {
   }
 
   // Reserved: set symbol/logo
-  if (base === SYMBOL_BASENAME) {
+  if (SYMBOL_BASENAMES.has(base)) {
     return { isSymbol: true, ext };
   }
 
-  // Purely numeric filename e.g. 001.png
-  if (/^\d+$/.test(base)) {
-    return { cardNumber: padCardNumber(base), ext, isSymbol: false };
-  }
-
-  // TEST MODE: extract number from e.g. Blitzle-12-XY-Trainer-Kit-Pikachu-Libre.png
-  const numMatch = base.match(/-(\d+)-/) || base.match(/-(\d+)$/);
+  // Extract the first number found in the basename
+  const numMatch = base.match(/(\d+)/);
   if (numMatch) {
     return { cardNumber: padCardNumber(numMatch[1]), ext, isSymbol: false };
   }
 
   return {
-    error: `Invalid image filename "${filename}". Files inside the zip must be named like 001.png, 002.jpg, etc. Use "symbol.png" for the set logo.`,
+    error: `Invalid image filename "${filename}". Filename must contain a card number (e.g. 001.png, Blitzle-12.png). Use "symbol.png" or "logo.png" for the set logo.`,
   };
 }
 
@@ -74,4 +71,4 @@ function buildCanonicalFilename(setCode, cardNumber, ext) {
   return `${setCode}-${cardNumber}${ext}`;
 }
 
-module.exports = { isJunkFile, parseZipFilename, buildCanonicalFilename, ALLOWED_EXTENSIONS, SYMBOL_BASENAME };
+module.exports = { isJunkFile, parseZipFilename, buildCanonicalFilename, ALLOWED_EXTENSIONS, SYMBOL_BASENAMES };

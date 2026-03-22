@@ -13,12 +13,11 @@ const config = {
   tempUploadDir: process.env.TEMP_UPLOAD_DIR || '/tmp/tcgdex-image-intake/uploads',
   tempExtractDir: process.env.TEMP_EXTRACT_DIR || '/tmp/tcgdex-image-intake/extracted',
 
-  google: {
-    serviceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    privateKey: process.env.GOOGLE_PRIVATE_KEY
-      ? process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n')
-      : undefined,
-    driveRootFolderId: process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID,
+  minio: {
+    endpoint: process.env.MINIO_ENDPOINT || 'http://minio:9000',
+    accessKey: process.env.MINIO_ACCESS_KEY,
+    secretKey: process.env.MINIO_SECRET_KEY,
+    bucketName: process.env.MINIO_BUCKET_NAME || 'tcgdex-images',
   },
 
   allowedOrigins: process.env.ALLOWED_ORIGINS
@@ -29,9 +28,8 @@ const config = {
 function validateConfig() {
   const required = [
     ['API_KEY', config.apiKey],
-    ['GOOGLE_SERVICE_ACCOUNT_EMAIL', config.google.serviceAccountEmail],
-    ['GOOGLE_PRIVATE_KEY', config.google.privateKey],
-    ['GOOGLE_DRIVE_ROOT_FOLDER_ID', config.google.driveRootFolderId],
+    ['MINIO_ACCESS_KEY', config.minio.accessKey],
+    ['MINIO_SECRET_KEY', config.minio.secretKey],
   ];
 
   const missing = required.filter(([, val]) => !val).map(([key]) => key);

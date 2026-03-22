@@ -6,7 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const { parseCardNumbers } = require('../utils/cardNumbers');
 const { buildCanonicalFilename } = require('../utils/filenames');
 const { extractAndMap } = require('./zip.service');
-const { uploadCardImages } = require('./drive.service');
+const { uploadCardImages } = require('./storage.service');
 const { zipPath, extractDir, cleanupSubmission } = require('../utils/tempDirs');
 const logger = require('../utils/logger');
 
@@ -97,10 +97,10 @@ async function processUpload(rawInput) {
       };
     });
 
-    // --- 7. Upload to Google Drive ---
-    logger.info({ submissionId, count: filesToUpload.length, hasSymbol: !!symbolFile }, 'Drive upload started');
+    // --- 7. Upload to MinIO ---
+    logger.info({ submissionId, count: filesToUpload.length, hasSymbol: !!symbolFile }, 'MinIO upload started');
 
-    const { setFolderId, submissionFolderId, uploads, symbolFile: uploadedSymbol } = await uploadCardImages(
+    const { bucketName, setPrefix, submissionPrefix, uploads, symbolFile: uploadedSymbol } = await uploadCardImages(
       setCode,
       submissionId,
       filesToUpload,
@@ -118,9 +118,10 @@ async function processUpload(rawInput) {
         matchedCount: uploads.length,
         uploadedFiles: uploads,
         ...(uploadedSymbol && { symbolFile: uploadedSymbol }),
-        drive: {
-          setFolderId,
-          submissionFolderId,
+        storage: {
+          bucketName,
+          setPrefix,
+          submissionPrefix,
         },
       },
     };
