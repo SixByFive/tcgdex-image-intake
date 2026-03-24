@@ -22,7 +22,7 @@ function buildSubmissionId(setCode) {
 /**
  * Process a card image upload submission.
  *
- * @param {object} rawInput - { setCode, cardNumbers, multerFile }
+ * @param {object} rawInput - { setCode, cardNumbers?, multerFile }
  * @returns {{ success, data?, error? }}
  */
 async function processUpload(rawInput) {
@@ -34,10 +34,15 @@ async function processUpload(rawInput) {
     return { success: false, error: 'setCode is required', status: 400 };
   }
 
-  // --- 2. Normalize cardNumbers ---
-  const { numbers: requestedNumbers, error: numbersError } = parseCardNumbers(rawInput.cardNumbers);
-  if (numbersError) {
-    return { success: false, error: numbersError, status: 400 };
+  // --- 2. Normalize cardNumbers (optional for symbol-only uploads) ---
+  const hasCardNumbers = rawInput.cardNumbers && rawInput.cardNumbers.trim().length > 0;
+  let requestedNumbers = [];
+  if (hasCardNumbers) {
+    const { numbers, error: numbersError } = parseCardNumbers(rawInput.cardNumbers);
+    if (numbersError) {
+      return { success: false, error: numbersError, status: 400 };
+    }
+    requestedNumbers = numbers;
   }
 
   // --- 3. Generate submission ID and move zip to canonical temp location ---
@@ -63,39 +68,42 @@ async function processUpload(rawInput) {
       return { success: false, error: extractError, status: 400 };
     }
 
-    // --- 5. Cross-check requested numbers vs extracted files ---
-    const extractedNumbers = new Set(Object.keys(imageMap));
-    const requestedSet = new Set(requestedNumbers);
+    // --- 5. Cross-check and build file list (skipped for symbol-only uploads) ---
+    let filesToUpload = [];
+    if (requestedNumbers.length > 0 || Object.keys(imageMap).length > 0) {
+      const extractedNumbers = new Set(Object.keys(imageMap));
+      const requestedSet = new Set(requestedNumbers);
 
-    const missing = requestedNumbers.filter((n) => !extractedNumbers.has(n));
-    const extra = [...extractedNumbers].filter((n) => !requestedSet.has(n));
+      const missing = requestedNumbers.filter((n) => !extractedNumbers.has(n));
+      const extra = [...extractedNumbers].filter((n) => !requestedSet.has(n));
 
-    if (missing.length > 0) {
-      return {
-        success: false,
-        error: `Missing image files for card numbers: ${missing.join(', ')}`,
-        status: 400,
-      };
+      if (missing.length > 0) {
+        return {
+          success: false,
+          error: `Missing image files for card numbers: ${missing.join(', ')}`,
+          status: 400,
+        };
+      }
+
+      if (extra.length > 0) {
+        return {
+          success: false,
+          error: `Unexpected image files found in zip: ${extra.join(', ')}`,
+          status: 400,
+        };
+      }
+
+      // --- 6. Build canonical file list ---
+      filesToUpload = requestedNumbers.map((cardNumber) => {
+        const { absPath, ext } = imageMap[cardNumber];
+        return {
+          cardNumber,
+          localPath: absPath,
+          canonicalFilename: buildCanonicalFilename(setCode, cardNumber, ext),
+          ext,
+        };
+      });
     }
-
-    if (extra.length > 0) {
-      return {
-        success: false,
-        error: `Unexpected image files found in zip: ${extra.join(', ')}`,
-        status: 400,
-      };
-    }
-
-    // --- 6. Build canonical file list ---
-    const filesToUpload = requestedNumbers.map((cardNumber) => {
-      const { absPath, ext } = imageMap[cardNumber];
-      return {
-        cardNumber,
-        localPath: absPath,
-        canonicalFilename: buildCanonicalFilename(setCode, cardNumber, ext),
-        ext,
-      };
-    });
 
     // --- 7. Upload to MinIO ---
     logger.info({ submissionId, count: filesToUpload.length, hasSymbol: !!symbolFile }, 'MinIO upload started');
@@ -114,9 +122,8 @@ async function processUpload(rawInput) {
       data: {
         setCode,
         submissionId,
-        requestedCardNumbers: requestedNumbers,
-        matchedCount: uploads.length,
-        uploadedFiles: uploads,
+        ...(requestedNumbers.length > 0 && { requestedCardNumbers: requestedNumbers }),
+        ...(uploads.length > 0 && { matchedCount: uploads.length, uploadedFiles: uploads }),
         ...(uploadedSymbol && { symbolFile: uploadedSymbol }),
         storage: {
           bucketName,

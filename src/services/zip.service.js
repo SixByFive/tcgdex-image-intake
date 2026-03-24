@@ -102,7 +102,7 @@ function extractAndMap(zipFilePath, destDir) {
     return { imageMap: null, symbolFile: null, error: errors[0] };
   }
 
-  if (Object.keys(imageMap).length === 0) {
+  if (Object.keys(imageMap).length === 0 && !symbolFile) {
     return { imageMap: null, symbolFile: null, error: 'No valid image files found in zip.' };
   }
 

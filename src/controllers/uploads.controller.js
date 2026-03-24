@@ -15,9 +15,7 @@ async function uploadCardImagesController(req, res) {
     return badRequest(res, 'setCode is required');
   }
 
-  if (!req.body.cardNumbers) {
-    return badRequest(res, 'cardNumbers is required');
-  }
+  // cardNumbers is optional — omit it for symbol-only uploads
 
   try {
     const result = await processUpload({
