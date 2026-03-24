@@ -11,11 +11,8 @@ async function uploadCardImagesController(req, res) {
     return badRequest(res, 'zipFile is required');
   }
 
-  if (!req.body.setCode) {
-    return badRequest(res, 'setCode is required');
-  }
-
-  // cardNumbers is optional — omit it for symbol-only uploads
+  // setCode is optional — if omitted the zip must use folder-per-set structure
+  // cardNumbers is optional — if omitted card numbers are auto-resolved from filenames
 
   try {
     const result = await processUpload({

@@ -3,3 +3,4 @@ node_modules/
 tmp/
 /var/log/tcgdex-image-intake/
 *.log
+*.local

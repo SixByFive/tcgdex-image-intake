@@ -5,34 +5,20 @@ const { padCardNumber } = require('./cardNumbers');
 
 const ALLOWED_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 const JUNK_FILES = new Set(['.ds_store', 'thumbs.db']);
-
-// Reserved filenames for set symbol/logo
 const SYMBOL_BASENAMES = new Set(['symbol', 'logo']);
 
-/**
- * Returns true if a filename inside the zip should be silently ignored.
- */
+const SET_CODE_RE = /^[A-Z0-9]{2,10}$/;
+
 function isJunkFile(filename) {
   const base = path.basename(filename).toLowerCase();
   return JUNK_FILES.has(base) || base.startsWith('__macosx');
 }
 
-/**
- * Validate and parse a raw filename from the zip.
- * Returns one of:
- *   { cardNumber: string, ext: string, isSymbol: false }
- *   { isSymbol: true, ext: string }
- *   { error: string }
- *
- * Rules:
- *  - Must be a root-level file (no path separators)
- *  - Extension must be in ALLOWED_EXTENSIONS
- *  - Basename must be "symbol" or "logo" (set symbol/logo), OR
- *  - Basename must contain at least one number — that number is extracted as the card number
- *    e.g. 001.png, Blitzle-12-XY-Trainer-Kit.png, Potion-21-XY-Trainer-Kit.png
- */
+function isValidSetCode(name) {
+  return SET_CODE_RE.test(name.toUpperCase());
+}
+
 function parseZipFilename(filename) {
-  // Reject nested paths
   const normalised = filename.replace(/\\/g, '/');
   if (normalised.includes('/')) {
     return { error: `Nested file path not allowed: "${filename}"` };
@@ -47,12 +33,10 @@ function parseZipFilename(filename) {
     };
   }
 
-  // Reserved: set symbol/logo
   if (SYMBOL_BASENAMES.has(base)) {
     return { isSymbol: true, ext };
   }
 
-  // Extract the first number found in the basename
   const numMatch = base.match(/(\d+)/);
   if (numMatch) {
     return { cardNumber: padCardNumber(numMatch[1]), ext, isSymbol: false };
@@ -64,11 +48,41 @@ function parseZipFilename(filename) {
 }
 
 /**
- * Build the canonical output filename.
- * e.g. setCode=SV2A, cardNumber=001, ext=.png -> "SV2A-001.png"
+ * Validate and parse a filename one level deep inside a set folder.
+ * entryName format: SETCODE/filename.ext
+ * Returns { setCode, parsedFile } or { error }
  */
+function parseNestedZipEntry(entryName) {
+  const normalised = entryName.replace(/\\/g, '/');
+  const parts = normalised.split('/');
+
+  if (parts.length !== 2) {
+    return { error: `Only one level of folder nesting is allowed: "${entryName}"` };
+  }
+
+  const [folder, filename] = parts;
+  const setCode = folder.toUpperCase();
+
+  if (!isValidSetCode(setCode)) {
+    return { error: `Folder name "${folder}" is not a valid set code` };
+  }
+
+  const parsed = parseZipFilename(filename);
+  if (parsed.error) return { error: parsed.error };
+
+  return { setCode, parsedFile: parsed };
+}
+
 function buildCanonicalFilename(setCode, cardNumber, ext) {
   return `${setCode}-${cardNumber}${ext}`;
 }
 
-module.exports = { isJunkFile, parseZipFilename, buildCanonicalFilename, ALLOWED_EXTENSIONS, SYMBOL_BASENAMES };
+module.exports = {
+  isJunkFile,
+  isValidSetCode,
+  parseZipFilename,
+  parseNestedZipEntry,
+  buildCanonicalFilename,
+  ALLOWED_EXTENSIONS,
+  SYMBOL_BASENAMES,
+};
