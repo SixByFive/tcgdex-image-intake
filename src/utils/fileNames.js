@@ -7,7 +7,7 @@ const ALLOWED_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 const JUNK_FILES = new Set(['.ds_store', 'thumbs.db']);
 const SYMBOL_BASENAMES = new Set(['symbol', 'logo']);
 
-const SET_CODE_RE = /^[A-Z0-9]{2,10}$/;
+const SET_CODE_RE = /^[A-Z0-9][A-Z0-9.\-]{1,9}$/;
 
 function isJunkFile(filename) {
   const base = path.basename(filename).toLowerCase();
