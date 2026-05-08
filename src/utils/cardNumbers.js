@@ -28,7 +28,7 @@ function parseCardNumbers(raw) {
   const normalised = [];
 
   for (const seg of segments) {
-    if (!/^\d+$/.test(seg)) {
+    if (!/^\d+[A-Za-z]?$/.test(seg)) {
       return {
         numbers: null,
         error: `Invalid card number "${seg}". Card numbers must be numeric only.`,
