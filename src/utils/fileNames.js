@@ -37,9 +37,11 @@ function parseZipFilename(filename) {
     return { isSymbol: true, ext };
   }
 
-  const numMatch = base.match(/(\d+)/);
+  const numMatch = base.match(/(\d+)([a-z]?)/);
   if (numMatch) {
-    return { cardNumber: padCardNumber(numMatch[1]), ext, isSymbol: false };
+    const passed = padCardNumber(numMatch[1]);
+    const variant = numMatch[2] || '';
+    return { cardNumber: passed + variant.toUpperCase(), ext, isSymbol: false };
   }
 
   return {
