@@ -47,27 +47,13 @@ async function uploadFile(client, localPath, objectKey, mimeType) {
   return objectKey;
 }
 
-/**
- * Upload a batch of renamed card image files to S3.
- * Optionally uploads a set symbol to the set-level prefix.
- *
- * Object key structure:
- *   <SETCODE>/<SUBMISSION_ID>/<CANONICAL_FILENAME>
- *   <SETCODE>/symbol.ext
- *
- * @param {string} setCode
- * @param {string} submissionId
- * @param {Array<{ cardNumber, localPath, canonicalFilename, ext }>} files
- * @param {{ absPath: string, ext: string } | null} symbolFile
- * @returns {{ bucketName, setPrefix, submissionPrefix, uploads, symbolFile }}
- */
-async function uploadCardImages(setCode, submissionId, files, symbolFile = null) {
+async function uploadCardImages(lang, serie, setCode, submissionId, files, symbolFile = null) {
   const client = getS3Client();
 
-  const setPrefix = setCode;
-  const submissionPrefix = `${setCode}/${submissionId}`;
+  const setPrefix = `${lang}/${serie}/${setCode}`;
+  const submissionPrefix = `${setPrefix}/${submissionId}`;
 
-  logger.info({ setCode, submissionId, bucket: config.s3.bucketName }, 'S3 upload started');
+  logger.info({ lang, serie, setCode, submissionId, bucket: config.s3.bucketName }, 'S3 upload started');
 
   const uploads = [];
 
@@ -84,12 +70,11 @@ async function uploadCardImages(setCode, submissionId, files, symbolFile = null)
     });
   }
 
-  // Upload symbol to set-level prefix if provided
   let uploadedSymbol = null;
   if (symbolFile) {
     const symbolFilename = `symbol${symbolFile.ext}`;
     const mimeType = EXT_MIME[symbolFile.ext] || 'application/octet-stream';
-    const objectKey = `${setPrefix}/${symbolFilename}`;
+    const objectKey = `${submissionPrefix}/${symbolFilename}`;
 
     await uploadFile(client, symbolFile.absPath, objectKey, mimeType);
 

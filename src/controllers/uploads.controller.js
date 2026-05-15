@@ -11,11 +11,19 @@ async function uploadCardImagesController(req, res) {
     return badRequest(res, 'zipFile is required');
   }
 
+  const lang = (req.body.lang || '').trim();
+  const serie = (req.body.serie || '').trim();
+
+  if (!lang) return badRequest(res, 'lang is required');
+  if (!serie) return badRequest(res, 'serie is required');
+
   // setCode is optional — if omitted the zip must use folder-per-set structure
   // cardNumbers is optional — if omitted card numbers are auto-resolved from filenames
 
   try {
     const result = await processUpload({
+      lang,
+      serie,
       setCode: req.body.setCode,
       cardNumbers: req.body.cardNumbers,
       multerFile: req.file,

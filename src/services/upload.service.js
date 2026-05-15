@@ -3,19 +3,18 @@
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const { parseCardNumbers } = require('../utils/cardNumbers');
-const { buildCanonicalFilename } = require('../utils/fileNames');
 const { extractAndMap, extractAndMapMulti } = require('./zip.service');
 const { uploadCardImages } = require('./storage.service');
 const { zipPath, extractDir, cleanupSubmission } = require('../utils/tempDirs');
 const logger = require('../utils/logger');
 
-function buildSubmissionId(setCode) {
+function buildSubmissionId() {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const suffix = uuidv4().split('-')[0];
-  return `${setCode}-${timestamp}-${suffix}`;
+  return `${timestamp}-${suffix}`;
 }
 
-async function processSingleSetUpload(setCode, cardNumbers, destZipPath, destExtractDir) {
+async function processSingleSetUpload(lang, serie, setCode, cardNumbers, destZipPath, destExtractDir) {
   const { imageMap, symbolFile, error: extractError } = extractAndMap(destZipPath, destExtractDir);
 
   if (extractError) {
@@ -60,15 +59,15 @@ async function processSingleSetUpload(setCode, cardNumbers, destZipPath, destExt
     return {
       cardNumber,
       localPath: absPath,
-      canonicalFilename: buildCanonicalFilename(setCode, cardNumber, ext),
+      canonicalFilename: `${cardNumber}${ext}`,
       ext,
     };
   });
 
-  const submissionId = buildSubmissionId(setCode);
+  const submissionId = buildSubmissionId();
 
   const { bucketName, setPrefix, submissionPrefix, uploads, symbolFile: uploadedSymbol } =
-    await uploadCardImages(setCode, submissionId, filesToUpload, symbolFile);
+    await uploadCardImages(lang, serie, setCode, submissionId, filesToUpload, symbolFile);
 
   return {
     success: true,
@@ -83,7 +82,7 @@ async function processSingleSetUpload(setCode, cardNumbers, destZipPath, destExt
   };
 }
 
-async function processMultiSetUpload(destZipPath, destExtractDir) {
+async function processMultiSetUpload(lang, serie, destZipPath, destExtractDir) {
   const { sets, error: extractError } = extractAndMapMulti(destZipPath, destExtractDir);
 
   if (extractError) {
@@ -93,7 +92,7 @@ async function processMultiSetUpload(destZipPath, destExtractDir) {
   const results = [];
 
   for (const [setCode, { imageMap, symbolFile }] of Object.entries(sets)) {
-    const submissionId = buildSubmissionId(setCode);
+    const submissionId = buildSubmissionId();
     const cardNumbers = Object.keys(imageMap).sort();
 
     const filesToUpload = cardNumbers.map((cardNumber) => {
@@ -101,13 +100,13 @@ async function processMultiSetUpload(destZipPath, destExtractDir) {
       return {
         cardNumber,
         localPath: absPath,
-        canonicalFilename: buildCanonicalFilename(setCode, cardNumber, ext),
+        canonicalFilename: `${cardNumber}${ext}`,
         ext,
       };
     });
 
     const { bucketName, setPrefix, submissionPrefix, uploads, symbolFile: uploadedSymbol } =
-      await uploadCardImages(setCode, submissionId, filesToUpload, symbolFile);
+      await uploadCardImages(lang, serie, setCode, submissionId, filesToUpload, symbolFile);
 
     results.push({
       setCode,
@@ -140,9 +139,10 @@ async function processMultiSetUpload(destZipPath, destExtractDir) {
 async function processUpload(rawInput) {
   const { multerFile } = rawInput;
   const setCode = (rawInput.setCode || '').trim().toUpperCase();
+  const { lang, serie } = rawInput;
   const isMultiSet = !setCode;
 
-  const submissionId = isMultiSet ? buildSubmissionId('MULTI') : buildSubmissionId(setCode);
+  const submissionId = buildSubmissionId();
   const destZipPath = zipPath(submissionId);
   const destExtractDir = extractDir(submissionId);
 
@@ -157,9 +157,9 @@ async function processUpload(rawInput) {
     logger.info({ submissionId, isMultiSet, setCode: setCode || null }, 'Upload processing started');
 
     if (isMultiSet) {
-      return await processMultiSetUpload(destZipPath, destExtractDir);
+      return await processMultiSetUpload(lang, serie, destZipPath, destExtractDir);
     } else {
-      return await processSingleSetUpload(setCode, rawInput.cardNumbers, destZipPath, destExtractDir);
+      return await processSingleSetUpload(lang, serie, setCode, rawInput.cardNumbers, destZipPath, destExtractDir);
     }
   } finally {
     cleanupSubmission(submissionId);
