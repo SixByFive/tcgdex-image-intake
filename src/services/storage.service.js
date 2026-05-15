@@ -7,13 +7,13 @@ const logger = require('../utils/logger');
 
 function getS3Client() {
   return new S3Client({
-    endpoint: config.minio.endpoint,
-    region: 'us-east-1', // MinIO requires a region value, any string works
+    endpoint: config.s3.endpoint,
+    region: 'us-east-1',
     credentials: {
-      accessKeyId: config.minio.accessKey,
-      secretAccessKey: config.minio.secretKey,
+      accessKeyId: config.s3.accessKey,
+      secretAccessKey: config.s3.secretKey,
     },
-    forcePathStyle: true, // Required for MinIO
+    forcePathStyle: true,
   });
 }
 
@@ -25,7 +25,7 @@ const EXT_MIME = {
 };
 
 /**
- * Upload a single file to MinIO.
+ * Upload a single file to S3.
  * Returns the object key (path within the bucket).
  */
 async function uploadFile(client, localPath, objectKey, mimeType) {
@@ -33,7 +33,7 @@ async function uploadFile(client, localPath, objectKey, mimeType) {
   const fileSize = fs.statSync(localPath).size;
 
   const command = new PutObjectCommand({
-    Bucket: config.minio.bucketName,
+    Bucket: config.s3.bucketName,
     Key: objectKey,
     Body: fileStream,
     ContentType: mimeType,
@@ -42,13 +42,13 @@ async function uploadFile(client, localPath, objectKey, mimeType) {
 
   await client.send(command);
 
-  logger.info({ objectKey }, 'File uploaded to MinIO');
+  logger.info({ objectKey }, 'File uploaded to S3');
 
   return objectKey;
 }
 
 /**
- * Upload a batch of renamed card image files to MinIO.
+ * Upload a batch of renamed card image files to S3.
  * Optionally uploads a set symbol to the set-level prefix.
  *
  * Object key structure:
@@ -67,7 +67,7 @@ async function uploadCardImages(setCode, submissionId, files, symbolFile = null)
   const setPrefix = setCode;
   const submissionPrefix = `${setCode}/${submissionId}`;
 
-  logger.info({ setCode, submissionId, bucket: config.minio.bucketName }, 'MinIO upload started');
+  logger.info({ setCode, submissionId, bucket: config.s3.bucketName }, 'S3 upload started');
 
   const uploads = [];
 
@@ -93,14 +93,14 @@ async function uploadCardImages(setCode, submissionId, files, symbolFile = null)
 
     await uploadFile(client, symbolFile.absPath, objectKey, mimeType);
 
-    logger.info({ objectKey }, 'Symbol uploaded to MinIO');
+    logger.info({ objectKey }, 'Symbol uploaded to S3');
 
     uploadedSymbol = { filename: symbolFilename, objectKey };
   }
 
-  logger.info({ submissionId }, 'MinIO upload completed');
+  logger.info({ submissionId }, 'S3 upload completed');
 
-  return { bucketName: config.minio.bucketName, setPrefix, submissionPrefix, uploads, symbolFile: uploadedSymbol };
+  return { bucketName: config.s3.bucketName, setPrefix, submissionPrefix, uploads, symbolFile: uploadedSymbol };
 }
 
 module.exports = { uploadCardImages };

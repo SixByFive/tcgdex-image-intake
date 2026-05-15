@@ -13,11 +13,11 @@ const config = {
   tempUploadDir: process.env.TEMP_UPLOAD_DIR || '/tmp/tcgdex-image-intake/uploads',
   tempExtractDir: process.env.TEMP_EXTRACT_DIR || '/tmp/tcgdex-image-intake/extracted',
 
-  minio: {
-    endpoint: process.env.MINIO_ENDPOINT || 'http://minio:9000',
-    accessKey: process.env.MINIO_ACCESS_KEY,
-    secretKey: process.env.MINIO_SECRET_KEY,
-    bucketName: process.env.MINIO_BUCKET_NAME || 'tcgdex-images',
+  s3: {
+    endpoint: process.env.S3_ENDPOINT,
+    accessKey: process.env.S3_ACCESS_KEY,
+    secretKey: process.env.S3_SECRET_KEY,
+    bucketName: process.env.S3_BUCKET_NAME,
   },
 
   allowedOrigins: process.env.ALLOWED_ORIGINS
@@ -28,8 +28,10 @@ const config = {
 function validateConfig() {
   const required = [
     ['API_KEY', config.apiKey],
-    ['MINIO_ACCESS_KEY', config.minio.accessKey],
-    ['MINIO_SECRET_KEY', config.minio.secretKey],
+    ['S3_ENDPOINT', config.s3.endpoint],
+    ['S3_ACCESS_KEY', config.s3.accessKey],
+    ['S3_SECRET_KEY', config.s3.secretKey],
+    ['S3_BUCKET_NAME', config.s3.bucketName],
   ];
 
   const missing = required.filter(([, val]) => !val).map(([key]) => key);
