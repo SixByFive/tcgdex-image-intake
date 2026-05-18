@@ -139,7 +139,7 @@ async function processMultiSetUpload(destZipPath, destExtractDir) {
  */
 async function processUpload(rawInput) {
   const { multerFile } = rawInput;
-  const setCode = (rawInput.setCode || '').trim().toUpperCase();
+  const setCode = (rawInput.setCode || '').trim().toLowerCase();
   const isMultiSet = !setCode;
 
   const submissionId = isMultiSet ? buildSubmissionId('MULTI') : buildSubmissionId(setCode);
