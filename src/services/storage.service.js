@@ -47,7 +47,7 @@ async function uploadFile(client, localPath, objectKey, mimeType) {
   return objectKey;
 }
 
-async function uploadCardImages(lang, serie, setCode, submissionId, files, symbolFile = null) {
+async function uploadCardImages(lang, serie, setCode, submissionId, files, symbolFile = null, logoFile = null) {
   const client = getS3Client();
 
   const setPrefix = `${lang}/${serie}/${setCode}`;
@@ -75,17 +75,24 @@ async function uploadCardImages(lang, serie, setCode, submissionId, files, symbo
     const symbolFilename = `symbol${symbolFile.ext}`;
     const mimeType = EXT_MIME[symbolFile.ext] || 'application/octet-stream';
     const objectKey = `${submissionPrefix}/${symbolFilename}`;
-
     await uploadFile(client, symbolFile.absPath, objectKey, mimeType);
-
     logger.info({ objectKey }, 'Symbol uploaded to S3');
-
     uploadedSymbol = { filename: symbolFilename, objectKey };
+  }
+
+  let uploadedLogo = null;
+  if (logoFile) {
+    const logoFilename = `logo${logoFile.ext}`;
+    const mimeType = EXT_MIME[logoFile.ext] || 'application/octet-stream';
+    const objectKey = `${submissionPrefix}/${logoFilename}`;
+    await uploadFile(client, logoFile.absPath, objectKey, mimeType);
+    logger.info({ objectKey }, 'Logo uploaded to S3');
+    uploadedLogo = { filename: logoFilename, objectKey };
   }
 
   logger.info({ submissionId }, 'S3 upload completed');
 
-  return { bucketName: config.s3.bucketName, setPrefix, submissionPrefix, uploads, symbolFile: uploadedSymbol };
+  return { bucketName: config.s3.bucketName, setPrefix, submissionPrefix, uploads, symbolFile: uploadedSymbol, logoFile: uploadedLogo };
 }
 
 module.exports = { uploadCardImages };

@@ -20,6 +20,7 @@ function extractAndMap(zipFilePath, destDir) {
   const entries = zip.getEntries();
   const imageMap = {};
   let symbolFile = null;
+  let logoFile   = null;
   const errors = [];
 
   for (const entry of entries) {
@@ -52,12 +53,21 @@ function extractAndMap(zipFilePath, destDir) {
     }
 
     if (parsed.isSymbol) {
-      if (symbolFile) {
-        errors.push('Duplicate symbol file found in zip. Only one symbol file is allowed.');
-        continue;
+      if (parsed.fileType === 'logo') {
+        if (logoFile) {
+          errors.push('Duplicate logo file found in zip. Only one logo file is allowed.');
+          continue;
+        }
+        logoFile = { absPath: destPath, ext: parsed.ext };
+        logger.debug({ destPath }, 'Logo file extracted');
+      } else {
+        if (symbolFile) {
+          errors.push('Duplicate symbol file found in zip. Only one symbol file is allowed.');
+          continue;
+        }
+        symbolFile = { absPath: destPath, ext: parsed.ext };
+        logger.debug({ destPath }, 'Symbol file extracted');
       }
-      symbolFile = { absPath: destPath, ext: parsed.ext };
-      logger.debug({ destPath }, 'Symbol file extracted');
       continue;
     }
 
@@ -73,16 +83,16 @@ function extractAndMap(zipFilePath, destDir) {
   }
 
   if (errors.length > 0) {
-    return { imageMap: null, symbolFile: null, error: errors[0] };
+    return { imageMap: null, symbolFile: null, logoFile: null, error: errors[0] };
   }
 
-  if (Object.keys(imageMap).length === 0 && !symbolFile) {
-    return { imageMap: null, symbolFile: null, error: 'No valid image files found in zip.' };
+  if (Object.keys(imageMap).length === 0 && !symbolFile && !logoFile) {
+    return { imageMap: null, symbolFile: null, logoFile: null, error: 'No valid image files found in zip.' };
   }
 
-  logger.info({ count: Object.keys(imageMap).length, hasSymbol: !!symbolFile }, 'Zip extraction completed');
+  logger.info({ count: Object.keys(imageMap).length, hasSymbol: !!symbolFile, hasLogo: !!logoFile }, 'Zip extraction completed');
 
-  return { imageMap, symbolFile, error: null };
+  return { imageMap, symbolFile, logoFile, error: null };
 }
 
 /**
@@ -143,16 +153,25 @@ function extractAndMapMulti(zipFilePath, destDir) {
     }
 
     if (!sets[setCode]) {
-      sets[setCode] = { imageMap: {}, symbolFile: null };
+      sets[setCode] = { imageMap: {}, symbolFile: null, logoFile: null };
     }
 
     if (parsedFile.isSymbol) {
-      if (sets[setCode].symbolFile) {
-        errors.push(`Duplicate symbol file found for set "${setCode}". Only one symbol file is allowed per set.`);
-        continue;
+      if (parsedFile.fileType === 'logo') {
+        if (sets[setCode].logoFile) {
+          errors.push(`Duplicate logo file found for set "${setCode}". Only one logo file is allowed per set.`);
+          continue;
+        }
+        sets[setCode].logoFile = { absPath: destPath, ext: parsedFile.ext };
+        logger.debug({ setCode, destPath }, 'Logo file extracted');
+      } else {
+        if (sets[setCode].symbolFile) {
+          errors.push(`Duplicate symbol file found for set "${setCode}". Only one symbol file is allowed per set.`);
+          continue;
+        }
+        sets[setCode].symbolFile = { absPath: destPath, ext: parsedFile.ext };
+        logger.debug({ setCode, destPath }, 'Symbol file extracted');
       }
-      sets[setCode].symbolFile = { absPath: destPath, ext: parsedFile.ext };
-      logger.debug({ setCode, destPath }, 'Symbol file extracted');
       continue;
     }
 

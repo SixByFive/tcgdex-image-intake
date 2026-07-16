@@ -5,7 +5,8 @@ const { padCardNumber } = require('./cardNumbers');
 
 const ALLOWED_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 const JUNK_FILES = new Set(['.ds_store', 'thumbs.db']);
-const SYMBOL_BASENAMES = new Set(['symbol', 'logo']);
+const SYMBOL_BASENAMES = new Set(['symbol']);
+const LOGO_BASENAMES   = new Set(['logo']);
 
 const SET_CODE_RE = /^[A-Z0-9][A-Z0-9.\-]{1,9}$/;
 
@@ -34,7 +35,11 @@ function parseZipFilename(filename) {
   }
 
   if (SYMBOL_BASENAMES.has(base)) {
-    return { isSymbol: true, ext };
+    return { isSymbol: true, fileType: 'symbol', ext };
+  }
+
+  if (LOGO_BASENAMES.has(base)) {
+    return { isSymbol: true, fileType: 'logo', ext };
   }
 
   const numMatch = base.match(/(\d+)([a-z]?)/);
@@ -87,4 +92,5 @@ module.exports = {
   buildCanonicalFilename,
   ALLOWED_EXTENSIONS,
   SYMBOL_BASENAMES,
+  LOGO_BASENAMES,
 };

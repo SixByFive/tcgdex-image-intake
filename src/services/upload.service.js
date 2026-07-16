@@ -15,7 +15,7 @@ function buildSubmissionId() {
 }
 
 async function processSingleSetUpload(lang, serie, setCode, cardNumbers, destZipPath, destExtractDir) {
-  const { imageMap, symbolFile, error: extractError } = extractAndMap(destZipPath, destExtractDir);
+  const { imageMap, symbolFile, logoFile, error: extractError } = extractAndMap(destZipPath, destExtractDir);
 
   if (extractError) {
     return { success: false, error: extractError, status: 400 };
@@ -66,8 +66,8 @@ async function processSingleSetUpload(lang, serie, setCode, cardNumbers, destZip
 
   const submissionId = buildSubmissionId();
 
-  const { bucketName, setPrefix, submissionPrefix, uploads, symbolFile: uploadedSymbol } =
-    await uploadCardImages(lang, serie, setCode, submissionId, filesToUpload, symbolFile);
+  const { bucketName, setPrefix, submissionPrefix, uploads, symbolFile: uploadedSymbol, logoFile: uploadedLogo } =
+    await uploadCardImages(lang, serie, setCode, submissionId, filesToUpload, symbolFile, logoFile);
 
   return {
     success: true,
@@ -77,6 +77,7 @@ async function processSingleSetUpload(lang, serie, setCode, cardNumbers, destZip
       ...(requestedNumbers.length > 0 && { requestedCardNumbers: requestedNumbers }),
       ...(uploads.length > 0 && { matchedCount: uploads.length, uploadedFiles: uploads }),
       ...(uploadedSymbol && { symbolFile: uploadedSymbol }),
+      ...(uploadedLogo && { logoFile: uploadedLogo }),
       storage: { bucketName, setPrefix, submissionPrefix },
     },
   };
@@ -91,7 +92,7 @@ async function processMultiSetUpload(lang, serie, destZipPath, destExtractDir) {
 
   const results = [];
 
-  for (const [setCode, { imageMap, symbolFile }] of Object.entries(sets)) {
+  for (const [setCode, { imageMap, symbolFile, logoFile }] of Object.entries(sets)) {
     const submissionId = buildSubmissionId();
     const cardNumbers = Object.keys(imageMap).sort();
 
@@ -105,14 +106,15 @@ async function processMultiSetUpload(lang, serie, destZipPath, destExtractDir) {
       };
     });
 
-    const { bucketName, setPrefix, submissionPrefix, uploads, symbolFile: uploadedSymbol } =
-      await uploadCardImages(lang, serie, setCode, submissionId, filesToUpload, symbolFile);
+    const { bucketName, setPrefix, submissionPrefix, uploads, symbolFile: uploadedSymbol, logoFile: uploadedLogo } =
+      await uploadCardImages(lang, serie, setCode, submissionId, filesToUpload, symbolFile, logoFile);
 
     results.push({
       setCode,
       submissionId,
       ...(uploads.length > 0 && { matchedCount: uploads.length, uploadedFiles: uploads }),
       ...(uploadedSymbol && { symbolFile: uploadedSymbol }),
+      ...(uploadedLogo && { logoFile: uploadedLogo }),
       storage: { bucketName, setPrefix, submissionPrefix },
     });
 
